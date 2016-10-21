@@ -1,3 +1,4 @@
+package code.lemma;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -5,19 +6,34 @@ import java.util.List;
 
 public class Tokenizer {
 	ArrayList<String> stopWords;
+	ArrayList<String> tokens; 
+	
 
 	public Tokenizer() {
 		// TODO Auto-generated constructor stub
-		
+		//Manually adding elements temporarily. In final probably want to read in stop words from file and split.
+		stopWords = new ArrayList<String>();
+		tokens = new ArrayList<String>();
+		stopWords.add("a");
+		stopWords.add("the");
+		//etc etc
 	}
 
 	public List<String> tokenize(String sentence) {
 		// TODO implement your tokenizing code here
-		
 		String removedString = removeNonLetters(sentence);
-		
+		removedString = removedString.toLowerCase();
+		String toks[] = removedString.split("\\s+");
+		for(String word : toks){
+			if(!stopWords.contains(word)){
+				//tokens.add(lemma(word));
+				tokens.add(word);
+				
+			}
+			
+		}
 		System.out.println(removedString);
-		return null;
+		return tokens;
 	}
 	public String removeNonLetters(String sentence){
 		StringBuffer s = new StringBuffer();
@@ -39,8 +55,11 @@ public class Tokenizer {
 	        }
 		}
 	   return s.toString();
-		
-	
 	}
+		public String lemma(String word)
+		{ //TODO implement lemmatization here
+			return word;
+		}
+	
 		
 }

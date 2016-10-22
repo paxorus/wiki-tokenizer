@@ -32,7 +32,6 @@ public class InvertedIndexMapred {
 		public void map(LongWritable uselessCrap, Text text, Context context) throws IOException,
 				InterruptedException {
 			
-			
 			// articleId = title, indices = <beagle, 2> <puppy, 3>
 			String raw = text.toString();
 			int tabIdx = raw.indexOf("\t");
@@ -40,7 +39,7 @@ public class InvertedIndexMapred {
 			raw = raw.substring(tabIdx + 1);
 			String[] pairs = raw.substring(1, raw.length() - 1).split(">,<");// ["beagle, 2", "puppy, 3"]
 			for (String pair : pairs) {
-				int idx = pair.indexOf(",");
+				int idx = pair.lastIndexOf(",");
 				Text token = new Text(pair.substring(0, idx));// beagle
 				int count = Integer.parseInt(pair.substring(idx + 1), 10);// 2
 				StringInteger sint = new StringInteger(articleId, count);
@@ -74,18 +73,17 @@ public class InvertedIndexMapred {
 	    
 	    Job job = Job.getInstance(conf, "inverter");
 	    
-	    FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-	    FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));    
-	    
 	    job.setJarByClass(InvertedIndexMapred.class);
 	    job.setMapperClass(InvertedIndexMapper.class);
-	    //job.setCombinerClass(InvertedIndexReducer.class);
+	    // Setting the CombinerClass causes an issue with inconsistent types.
 	    job.setReducerClass(InvertedIndexReducer.class);
 	    job.setOutputKeyClass(Text.class);
 	    job.setOutputValueClass(StringIntegerList.class);
 	    job.setMapOutputKeyClass(Text.class);
 	    job.setMapOutputValueClass(StringInteger.class);
 	    
+	    FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
+	    FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
 	}
 }

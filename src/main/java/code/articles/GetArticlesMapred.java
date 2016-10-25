@@ -70,11 +70,11 @@ public class GetArticlesMapred {
 		public void map(LongWritable offset, WikipediaPage inputPage, Context context) throws IOException, InterruptedException {
 
       		String title = inputPage.getTitle();// Albert Gore Loves Beagles
-	      
-	      	if (title == null) {
-	      		return;
-	      	}
-	      	if (!names.contains(title)) {
+      		if (title == null) {
+      			return;
+      		}
+		  	boolean found = searchTitle(title);
+	      	if (!found ) {
 	      		return;
 	      	}
       		
@@ -82,14 +82,72 @@ public class GetArticlesMapred {
       		try {
       			content = inputPage.getContent().trim();
       		} catch (NullPointerException npe) {
-      			System.err.println("\tCloud9 fails on:" + title);
+      			System.err.println("\tCloud9 errors on :" + title);
       			return;
       		}
-      		Text body = new Text(content.replaceAll("\\n", " "));
+      		inputPage.getContent().trim();
+      		content = content.replaceAll("\\n", " ");
       		docTitle.set(title + ";");
-      		context.write(docTitle, body);
+      		Text contentTxt = new Text(content);
+      		context.write(docTitle, contentTxt);
+		}
+		
+		public static boolean searchTitle(String title) {
+			
+			if (names.contains(title)) {
+				return true;
+			}
+		
+		  	String[] tokens = title.split("\\s+");// [Albert, Gore, Loves, Beagles]
+			
+		  	// for Albert, Gore, Loves, Beagles
+	      	for (int i = 0; i < tokens.length; i ++) {
+	      		
+	      		// choose a starting token
+	      		String window = tokens[i];
+	      		if (checkString(window)) {
+	      			return true;
+	      		}
+	      		
+	      		// first two characters aren't capital, skip it
+	      		if ((window.length() > 0 && !Character.isUpperCase(window.charAt(0))) && 
+			  	(window.length() > 1 && !Character.isUpperCase(window.charAt(1)))) {
+	      			break;
+	      		}
+	      		
+	      		// expand the window
+	      		// for [Gore], [Gore Loves], [Gore, Loves, Beagles]
+		      	for (int j = i + 1; j < tokens.length; j ++) {
+		      		window += " " + tokens[j];
+		      		if (checkString(window)) {
+		      			return true;
+		      		}
+			  	}
+	      	}
+	      	return false;
+		}
+		
+		public static boolean checkString(String window) {
+			// "Albert Gore" case
+		  	if(names.contains(window)){
+			  	return true;
+		  	}
+		  	if (window.length() <= 2) {
+		  		return false;
+		  	}
+		  	// "Albert Gore?" case
+		  	if(names.contains(window.substring(0, window.length() - 1))){
+			  	return true;
+		  	}
+		  	// "'Albert Gore'" case
+		  	if(names.contains(window.substring(1, window.length() - 1))){
+			  	return true;
+		  	}
+		  	return false;
 		}
 	}
+	
+
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
@@ -102,6 +160,8 @@ public class GetArticlesMapred {
 	    job.setMapperClass(GetArticlesMapper.class);
 	    job.setInputFormatClass(WikipediaPageInputFormat.class);
 	    job.setOutputKeyClass(Text.class);
+	    //job.setOutputValueClass(WikipediaPageFactory.getWikipediaPageClass(language));
+	    //Version 1.1.1 does not have WikipediaPAgeFactory, introduced in 2.0
 	    job.setOutputValueClass(Text.class);
 	    WikipediaPageInputFormat.addInputPath(job, new Path(stringArgs[0])); 
 	    FileOutputFormat.setOutputPath(job, new Path(stringArgs[1]));

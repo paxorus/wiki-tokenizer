@@ -1,7 +1,9 @@
 package code.articles;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Scanner;
@@ -43,112 +45,49 @@ public class GetArticlesMapred {
 	private static enum Records { TOTAL };
 
 	public static class GetArticlesMapper extends Mapper<LongWritable, WikipediaPage, Text, Text> {
+		
 		public static Set<String> names = new HashSet<String>();
 		private static final Text docTitle = new Text();
+		private static final String PEOPLE_FILE = "people.txt";
 
 		@Override
-		protected void setup(Mapper<LongWritable, WikipediaPage, Text, Text>.Context context)
-				throws IOException, InterruptedException {
+		protected void setup(Mapper<LongWritable, WikipediaPage, Text, Text>.Context context) throws IOException, InterruptedException {
       		//loading people file
-			String PEOPLE_FILE = "people.txt";
 	    	ClassLoader cl = GetArticlesMapred.class.getClassLoader();
-	    	String fileUrl = cl.getResource(PEOPLE_FILE).getFile();
-	    	
-	    	// Get jar path and then scan
-	    	String jarUrl = fileUrl.substring(5, fileUrl.length() - PEOPLE_FILE.length() - 2);
-	    	JarFile jf = new JarFile(new File(jarUrl));
-	    	Scanner sc = new Scanner(jf.getInputStream(jf.getEntry(PEOPLE_FILE)));
+	    	BufferedReader reader = new BufferedReader(new InputStreamReader(cl.getResourceAsStream(PEOPLE_FILE)));
 	    	
 	    	//read names into HashSet one line at a time
 	    	names = new HashSet<String>();
-			String scanName = "";
-			while(sc.hasNextLine()){
-				scanName = sc.nextLine();
+			String scanName;
+			while((scanName = reader.readLine()) != null){
 				names.add(scanName);
 			}
-			sc.close();
+			reader.close();
 			super.setup(context);
 		}
 
 		@Override
-		public void map(LongWritable offset, WikipediaPage inputPage, Context context)
-				throws IOException, InterruptedException {
-			context.getCounter(Records.TOTAL).increment(1);
-			ArrayList<String> stringWindow = new ArrayList<String>();
-		  	StringTokenizer itr = new StringTokenizer(inputPage.getTitle());
-		  	String nextToken = null;
-		  	String window = "";
-		  	Boolean found = false;
-	      
-	      	while (itr.hasMoreTokens()) {
-	    		  	nextToken = itr.nextToken();
-	    		  	stringWindow.add(nextToken);
-    	  	}
-	      
-	      	while(!stringWindow.isEmpty()){
-		      	for(int i = 0; i < stringWindow.size(); i++){
-				  	if(i == 0){
-					  	window = stringWindow.get(i);
-					  	if((window.length() > 0 && !Character.isUpperCase(window.charAt(0))) && 
-							  	(window.length() > 1 && !Character.isUpperCase(window.charAt(1))) &&
-							  	(window.length() > 2 && !Character.isUpperCase(window.charAt(2))) ){
-						  	i = stringWindow.size();
-					  	} else {
-						  	if(names.contains(window)){
-							  	found = true;
-						  	}
-						  	if(window.length() > 1){
-							  	if(names.contains(window.substring(0,window.length() - 1))){
-								  	found = true;
-							  	}
-						  	}
-						  	if(window.length() > 2){
-							  	if(names.contains(window.substring(1,window.length() - 1))){
-								  	found = true;
-							  	}
-						  	}
-						  	if(window.length() > 4){
-							  	if(names.contains(window.substring(2,window.length() - 2))){
-								  	found = true;
-							  	}
-						  	}
-					  	}
-				  	} else {
-					  	window = window + " " + stringWindow.get(i);
-					  	if(names.contains(window)){
-						  	found = true;
-					  	}
-					  	if(window.length() > 1){
-						  	if(names.contains(window.substring(0,window.length() - 1))){
-							  	found = true;
-						  	}
-					  	}
-					  	if(window.length() > 2){
-						  	if(names.contains(window.substring(1,window.length() - 1))){
-							  	found = true;
-						  	}
-					  	}
-					  	if(window.length() > 4){
-						  	if(names.contains(window.substring(2,window.length() - 2))){
-							  	found = true;
-						  	}
-					  	}
-				  	}
-			  	}
-    		  	window = "";
-    		  	stringWindow.remove(0);
-	      	}
+		public void map(LongWritable offset, WikipediaPage inputPage, Context context) throws IOException, InterruptedException {
 
-	      	if(found){
-	      		String title = inputPage.getTitle() + ";";
-	      		if (title != null) {
-	          		docTitle.set(title);
-	          		String content = inputPage.getContent().trim();
-	          		content = content.replaceAll("\\n", " ");
-	          		Text contentTxt = new Text(content);
-	          		context.write(docTitle, contentTxt);
-	      		}
+      		String title = inputPage.getTitle();// Albert Gore Loves Beagles
+	      
+	      	if (title == null) {
+	      		return;
 	      	}
+	      	if (!names.contains(title)) {
+	      		return;
+	      	}
+      		
+      		String content;
+      		try {
+      			content = inputPage.getContent().trim();
+      		} catch (NullPointerException npe) {
+      			System.err.println("\tCloud9 fails on:" + title);
+      			return;
+      		}
+      		Text body = new Text(content.replaceAll("\\n", " "));
+      		docTitle.set(title + ";");
+      		context.write(docTitle, body);
 		}
 	}
 
@@ -163,8 +102,6 @@ public class GetArticlesMapred {
 	    job.setMapperClass(GetArticlesMapper.class);
 	    job.setInputFormatClass(WikipediaPageInputFormat.class);
 	    job.setOutputKeyClass(Text.class);
-	    //job.setOutputValueClass(WikipediaPageFactory.getWikipediaPageClass(language));
-	    //Version 1.1.1 does not have WikipediaPAgeFactory, introduced in 2.0
 	    job.setOutputValueClass(Text.class);
 	    WikipediaPageInputFormat.addInputPath(job, new Path(stringArgs[0])); 
 	    FileOutputFormat.setOutputPath(job, new Path(stringArgs[1]));
